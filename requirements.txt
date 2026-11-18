@@ -1,3 +1,5 @@
-langchain
-python-dotenv
-openai
+# This project's real dependencies live in backend/requirements.txt.
+# (The backend calls Groq/Google APIs directly via httpx and loads .env
+# natively through pydantic-settings, so langchain/openai/python-dotenv
+# are not required.)
+-r backend/requirements.txt

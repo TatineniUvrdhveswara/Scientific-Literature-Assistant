@@ -30,6 +30,66 @@ class ScientificMemoryStore:
             if chromadb is not None
             else None
         )
+        if self.collection is not None:
+            self._hydrate_chroma_from_sqlite()
+
+    def _hydrate_chroma_from_sqlite(self) -> None:
+        """Backfill the chroma collection from SQLite embeddings if incomplete.
+
+        SQLite is the source of truth for chunk embeddings. When chromadb is
+        newly installed (or the vector folder is recreated), the collection
+        would otherwise be empty and memory search would silently return no
+        results even though embedded chunks exist. Idempotent and resumable:
+        only chunk ids missing from chroma are upserted, in batches that
+        respect chroma's max batch size.
+        """
+        with self._connect() as connection:
+            rows = connection.execute(
+                "SELECT chunk_id, payload, embedding FROM chunks WHERE embedded=1"
+            ).fetchall()
+        existing = set(self.collection.get(include=[])["ids"])
+        if len(existing) >= len(rows):
+            return
+        batch_size = 1000
+        ids: list[str] = []
+        embeddings: list[list[float]] = []
+        documents: list[str] = []
+        metadatas: list[dict] = []
+
+        def _flush() -> None:
+            if ids:
+                self.collection.upsert(
+                    ids=ids,
+                    embeddings=embeddings,
+                    documents=documents,
+                    metadatas=metadatas,
+                )
+                ids.clear()
+                embeddings.clear()
+                documents.clear()
+                metadatas.clear()
+
+        for row in rows:
+            if row["chunk_id"] in existing:
+                continue
+            try:
+                embedding = json.loads(row["embedding"] or "")
+                chunk = PaperChunk.model_validate(json.loads(row["payload"]))
+            except (json.JSONDecodeError, ValueError):
+                continue
+            ids.append(row["chunk_id"])
+            embeddings.append(embedding)
+            documents.append(chunk.text)
+            metadatas.append(
+                {
+                    "paper_id": chunk.paper_id,
+                    "source": chunk.source,
+                    "page_start": chunk.page_start or 0,
+                }
+            )
+            if len(ids) >= batch_size:
+                _flush()
+        _flush()
 
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.db_path)
