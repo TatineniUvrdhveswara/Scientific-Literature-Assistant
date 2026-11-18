@@ -29,6 +29,20 @@ def build_report(session: ResearchSession) -> ResearchReport:
             f"{len(references)} citation record(s)."
         ),
         answer=answer,
+        methodology_comparison=[
+            "Hybrid dense and BM25 retrieval candidates were merged and reranked before generation.",
+            f"The workflow selected {len(evidence)} evidence chunk(s) from persistent scientific memory.",
+        ],
+        findings=[
+            f"The generated answer contains {len(references)} citation record(s).",
+            f"Evidence evaluation score: {session.evaluation.overall_score:.2f}."
+            if session.evaluation
+            else "Evidence evaluation was not available.",
+        ],
+        research_gaps=[
+            "Validate the findings against additional papers and human expert review.",
+            "Measure the same query set across baseline systems for a controlled comparison.",
+        ],
         evidence_summary=evidence,
         limitations=limitations,
         references=references,
@@ -49,8 +63,11 @@ def render_markdown(report: ResearchReport) -> str:
         f"# {report.title}\n\n"
         f"## Executive summary\n\n{report.executive_summary}\n\n"
         f"## Answer\n\n{report.answer}\n\n"
+        f"## Methodology comparison\n\n{chr(10).join(f'- {item}' for item in report.methodology_comparison)}\n\n"
+        f"## Findings\n\n{chr(10).join(f'- {item}' for item in report.findings)}\n\n"
         f"## Evidence\n\n{evidence}\n\n"
         f"## Evaluation score\n\n{score}\n\n"
         f"## Limitations\n\n{limitations}\n\n"
+        f"## Research gaps\n\n{chr(10).join(f'- {item}' for item in report.research_gaps)}\n\n"
         f"## References\n\n{references}\n"
     )

@@ -1,0 +1,105 @@
+Scientific Research Assistant - Run Guide
+==========================================
+
+Prerequisites
+-------------
+- Windows PowerShell, Python 3.11+ (Python 3.14 works with the current requirements), and Node.js/npm.
+- Internet access is required for literature searches and optional external LLM providers.
+
+First-time setup
+----------------
+1. Open PowerShell in the repository root:
+   cd C:\Users\tatin\MINI-Project
+2. Create and activate the backend environment:
+   cd backend
+   python -m venv .venv
+   .\.venv\Scripts\Activate.ps1
+3. Install backend dependencies:
+   pip install -r requirements.txt
+4. Create the local environment file:
+   Copy-Item .env.example .env
+5. Add provider keys to backend\.env only when needed. Never commit or share backend\.env.
+6. Install frontend dependencies:
+   cd ..\frontend
+   npm install
+
+Start the application
+---------------------
+Use two PowerShell windows.
+
+Backend window:
+   cd C:\Users\tatin\MINI-Project\backend
+   .\.venv\Scripts\Activate.ps1
+   $env:PYTHONPATH = (Get-Location).Path
+   python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+
+Frontend window:
+   cd C:\Users\tatin\MINI-Project\frontend
+   npm run dev -- --host 127.0.0.1 --port 5173
+
+Open the application at http://127.0.0.1:5173.
+Backend health: http://127.0.0.1:8000/health
+Backend API docs: http://127.0.0.1:8000/docs
+
+Use the application
+--------------------
+1. Enter a research question containing at least 10 characters.
+2. Click "Run complete research workflow".
+3. Wait for literature acquisition, ingestion, retrieval, generation, evaluation, and final JEV decision.
+4. Review the evidence, citations, answer, evaluation, report, and dashboard.
+
+Modules (one-line descriptions)
+-------------------------------
+Module 1 - API foundation: validates research queries, creates sessions, exposes health/status endpoints, and coordinates the workflow.
+Module 2 - MCP literature acquisition: discovers MCP tools and searches arXiv and Semantic Scholar for normalized papers.
+Module 3 - Scientific memory: extracts PDF text, chunks content, creates embeddings, and persists paper/chunk metadata for reuse.
+Module 4 - Hybrid retrieval: combines dense vector search and BM25 keyword search, then reranks evidence with provenance.
+Module 5 - Generation and evaluation: produces evidence-grounded answers and scores relevance, coverage, citation support, consistency, and completeness.
+Module 6 - Reports and monitoring: builds reports, exports Markdown, records workflow traces/metrics, and supports refinement/final decisions.
+Frontend - React workspace: provides the research form, workflow status, evidence/report views, navigation, and evaluation dashboard.
+
+External APIs, URLs, and key locations
+--------------------------------------
+- arXiv API URL: https://export.arxiv.org/api/query
+  Used by backend\app\mcp\source_adapters.py in ArxivAdapter; no API key is required.
+- Semantic Scholar API URL: https://api.semanticscholar.org/graph/v1/paper/search
+  Used by backend\app\mcp\source_adapters.py in SemanticScholarAdapter.
+  Optional key: SEMANTIC_SCHOLAR_API_KEY in backend\.env.
+- Google Gemini API URL:
+  https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent
+  Used by backend\app\generation\provider.py when LLM_PROVIDER=google.
+  Required key: GOOGLE_API_KEY; model setting: GOOGLE_MODEL.
+- Groq API URL: https://api.groq.com/openai/v1/chat/completions
+  Used by backend\app\generation\provider.py when LLM_PROVIDER=groq.
+  Required key: GROQ_API_KEY; model setting: LLM_MODEL.
+- Frontend-to-backend URL: VITE_API_URL in frontend environment settings; default is
+  http://127.0.0.1:8000/api/v1 and it is used by frontend\src\api.ts.
+- Embedding model download: sentence-transformers/all-MiniLM-L6-v2.
+  Used by backend\app\memory\embeddings.py; it may download model files on first use.
+- Local MCP transport: backend\app\mcp_server.py is launched as a local stdio subprocess.
+  It is not an external API and does not require a key.
+
+Default key-free mode
+---------------------
+LLM_PROVIDER=grounded_fallback uses the local grounded fallback and does not require
+GOOGLE_API_KEY, GROQ_API_KEY, or LLM_API_KEY. Literature searches still require internet access.
+
+Testing
+-------
+Backend:
+   cd C:\Users\tatin\MINI-Project\backend
+   .\.venv\Scripts\Activate.ps1
+   $env:PYTHONPATH = (Get-Location).Path
+   python -m pytest tests -q
+
+Frontend:
+   cd C:\Users\tatin\MINI-Project\frontend
+   npm run build
+
+Stopping the application
+------------------------
+Press Ctrl+C in each backend/frontend PowerShell window.
+If a detached process was started, identify its PID with:
+   Get-NetTCPConnection -LocalPort 8000,5173
+Then stop only the listed process:
+   Stop-Process -Id <PID>

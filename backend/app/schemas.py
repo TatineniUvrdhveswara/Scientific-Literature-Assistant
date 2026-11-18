@@ -74,9 +74,13 @@ class WorkflowStatus(StrEnum):
 
 class JEVAction(StrEnum):
     REUSE_OR_ACQUIRE = "reuse_or_acquire"
+    REUSE_EXISTING = "reuse_existing"
     ACQUIRE = "acquire"
+    INSUFFICIENT_OR_ERROR = "insufficient_or_error"
     APPROVE = "approve"
     REFINE = "refine"
+    RETRIEVE_MORE = "retrieve_more"
+    REGENERATE = "regenerate"
     STOP_INSUFFICIENT_EVIDENCE = "stop_insufficient_evidence"
 
 

@@ -1,0 +1,1 @@
+export function KpiCard({ label, value, delta, estimated }: { label: string; value: string; delta?: string; estimated?: boolean }) { return <article className="kpi-card"><span>{label}</span><strong>{value}</strong>{delta && <small>{delta}</small>}{estimated && <em>Estimated</em>}</article>; }

@@ -27,6 +27,7 @@ from .schemas import (
 )
 from .store import session_store
 from .jev import JEVDecisionEngine
+from .schemas import JEVAction
 from .mcp_service import MCPService
 from .paper_store import paper_store
 from .memory.embeddings import embedding_provider
@@ -38,7 +39,29 @@ from .workflow.report import build_report, render_markdown
 from .workflow.schemas import WorkflowMetrics, WorkflowTrace
 from .workflow.trace import workflow_traces
 import logging
+import json
+from datetime import datetime, timezone
+from pathlib import Path
 from time import perf_counter
+
+# Persistent log of every completed user-tested workflow. The evaluation
+# dashboard folds these measured decisions into the served results, so the
+# dashboard updates after every question tested in the application.
+DECISION_LOG_PATH = Path(__file__).resolve().parents[1] / "data" / "decision_log.jsonl"
+
+INITIAL_ACTION_LABELS = {
+    "reuse_or_acquire": "REUSE_AND_ACQUIRE",
+    "acquire": "ACQUIRE_MORE",
+    "reuse_existing": "REUSE_EXISTING",
+    "insufficient_or_error": "INSUFFICIENT_OR_ERROR",
+}
+FINAL_ACTION_LABELS = {
+    "approve": "APPROVE",
+    "refine": "REFINE_RETRIEVAL",
+    "retrieve_more": "RETRIEVE_MORE",
+    "regenerate": "REGENERATE",
+    "stop_insufficient_evidence": "STOP_INSUFFICIENT_EVIDENCE",
+}
 
 settings = get_settings()
 mcp_service = MCPService()
@@ -67,6 +90,20 @@ def health() -> dict[str, str]:
     return {"status": "ok", "service": settings.app_name}
 
 
+@app.get("/api/evaluation/results", tags=["evaluation"])
+def get_evaluation_results() -> dict:
+    path = Path(__file__).resolve().parents[2] / "evaluation_results.json"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Evaluation results are not available")
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=500, detail="Evaluation results are invalid JSON") from exc
+    # Fold every completed user-tested session (decision log) into the served
+    # results so the dashboard updates live after each question.
+    return _fold_live_decisions(data)
+
+
 @router.get("/status", response_model=SystemStatusResponse, tags=["diagnostics"])
 def get_system_status() -> SystemStatusResponse:
     return SystemStatusResponse(
@@ -90,8 +127,8 @@ def get_system_status() -> SystemStatusResponse:
             ),
             ComponentStatus(
                 name="jev-decision-adapter",
-                status="provisional",
-                detail="Safe adapter boundary is active; authoritative JEV specification is still required.",
+                status="active",
+                detail="Full action-set JEV policy v1: reuse-existing, retrieve-more, and regenerate branches are active.",
             ),
             ComponentStatus(
                 name="scientific-memory",
@@ -120,16 +157,44 @@ def get_system_status() -> SystemStatusResponse:
 @router.post("/research/query", response_model=ResearchQueryResponse, status_code=201, tags=["research"])
 def submit_research_query(payload: ResearchQueryRequest) -> ResearchQueryResponse:
     session = ResearchSession(query=payload.query, filters=payload.filters)
-    session.initial_jev = jev_engine.decide_initial(
-        memory_count=scientific_memory.stats().chunks,
-        query=payload.query,
-    )
+    try:
+        memory_stats = scientific_memory.stats()
+        session.initial_jev = jev_engine.decide_initial(
+            memory_count=memory_stats.chunks,
+            query=payload.query,
+            memory_match_score=_memory_match_score(payload.query),
+        )
+    except Exception as exc:
+        # Safe JEV fallback: a broken decision boundary is reported honestly
+        # instead of guessing an action or failing the API request.
+        logger.warning("Initial JEV decision failed: %s", exc)
+        session.initial_jev = jev_engine.decide_initial(
+            memory_count=-1,
+            query=payload.query,
+        )
     session.current_stage = "initial_jev_decision"
     session.message = session.initial_jev.explanation
     session_store.create(session)
     workflow_traces.start_session(session.session_id)
     workflow_traces.record(session.session_id, "initial_jev_decision", "completed", session.message, perf_counter())
     return ResearchQueryResponse(session=session)
+
+
+def _memory_match_score(query: str) -> float | None:
+    """Best cosine similarity between the query and stored memory chunks.
+
+    Returns None when memory is empty or the similarity cannot be computed.
+    """
+    try:
+        vectors = embedding_provider.encode([query])
+        if not vectors:
+            return None
+        results = scientific_memory.search(vectors[0], limit=1)
+        if not results or results[0].distance is None:
+            return None
+        return max(0.0, min(1.0, 1.0 - results[0].distance))
+    except Exception:
+        return None
 
 
 @router.post(
@@ -161,47 +226,117 @@ def _execute_complete_workflow(session_id: str) -> None:
         workflow_traces.record(session.session_id, session.current_stage, "failed", session.message, perf_counter())
 
 
+def _log_decision(session: ResearchSession, latency_seconds: float) -> None:
+    """Append a completed workflow's measured JEV decisions to the decision log.
+
+    The evaluation dashboard endpoint folds this log into the served results,
+    so every question tested in the application updates the dashboard.
+    """
+    try:
+        entry = {
+            "session_id": str(session.session_id),
+            "query": session.query,
+            "initial_action": session.initial_jev.action.value if session.initial_jev else None,
+            "final_action": session.final_jev.action.value if session.final_jev else None,
+            "refinement_cycles": session.refinement_cycles,
+            "papers_acquired": len(session.papers),
+            "latency_seconds": round(latency_seconds, 2),
+            "evaluation_score": session.evaluation.overall_score if session.evaluation else None,
+            "completed_at": datetime.now(timezone.utc).isoformat(),
+        }
+        if not entry["final_action"]:
+            return
+        DECISION_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with DECISION_LOG_PATH.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(entry, default=str) + "\n")
+    except Exception as exc:  # decision logging is best-effort: never fail a workflow
+        logger.warning("Could not append to the decision log: %s", exc)
+
+
+def _fold_live_decisions(data: dict) -> dict:
+    """Fold the persistent decision log into the baseline evaluation results.
+
+    Baseline counts come from evaluation_results.json (the scripted campaign);
+    every completed user-tested session in decision_log.jsonl adds one initial
+    and one final JEV action and participates in the refinement-cycle average.
+    Sessions are deduplicated by session_id (last entry wins).
+    """
+    try:
+        if not DECISION_LOG_PATH.exists():
+            return data
+        entries: dict[str, dict] = {}
+        for line in DECISION_LOG_PATH.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entry = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if entry.get("session_id") and entry.get("final_action"):
+                entries[str(entry["session_id"])] = entry
+        if not entries:
+            return data
+        by_action = {row.get("action"): row for row in data.get("jev_actions") or []}
+        live_cycle_sum = 0
+        for entry in entries.values():
+            initial_row = by_action.get(INITIAL_ACTION_LABELS.get(entry.get("initial_action"), ""))
+            if initial_row is not None:
+                initial_row["initial"] = int(initial_row.get("initial", 0)) + 1
+            final_row = by_action.get(FINAL_ACTION_LABELS.get(entry.get("final_action"), ""))
+            if final_row is not None:
+                final_row["final"] = int(final_row.get("final", 0)) + 1
+            live_cycle_sum += int(entry.get("refinement_cycles") or 0)
+        baseline = data.get("jev_baseline")
+        if baseline is None:
+            # No scripted-campaign baseline recorded yet: derive it from the
+            # file's own measured counts and refinement-cycle average so the
+            # live fold never resets the average to zero.
+            baseline_sessions = sum(
+                int(row.get("initial", 0) or 0)
+                for row in (data.get("jev_actions") or [])
+                if row.get("action") in INITIAL_ACTION_LABELS.values()
+            )
+            file_avg = (data.get("average_refinement_cycles") or {}).get("value")
+            baseline_cycle_sum = round(float(file_avg or 0.0) * baseline_sessions)
+        else:
+            baseline_sessions = int(baseline.get("sessions", 0))
+            baseline_cycle_sum = int(baseline.get("cycle_sum", 0))
+        total_sessions = baseline_sessions + len(entries)
+        if total_sessions:
+            data["average_refinement_cycles"] = {
+                "value": round((baseline_cycle_sum + live_cycle_sum) / total_sessions, 2),
+                "source": "measured",
+            }
+        latest = max(entries.values(), key=lambda item: str(item.get("completed_at") or ""))
+        data["live_sessions"] = {
+            "count": len(entries),
+            "source": "measured",
+            "latest_query": latest.get("query"),
+            "latest_completed_at": latest.get("completed_at"),
+        }
+        return data
+    except Exception as exc:  # never break the dashboard on fold errors
+        logger.warning("Could not fold the live decision log: %s", exc)
+        return data
+
+
 def _run_complete_workflow(session_id: str) -> None:
     session = _get_session(session_id)
+    workflow_started = perf_counter()
+    reuse_existing = session.initial_jev.action == JEVAction.REUSE_EXISTING
+
     session.current_stage = "mcp_literature_acquisition"
-    session.message = "Workflow started. Acquiring scientific literature..."
-    session_store.update(session)
-    results = mcp_service.search(session.query, session.filters.sources, 5)
-    session.source_results = results
-    session.papers = mcp_service.store_papers(mcp_service.merge_unique(results))
-    session.current_stage = "scientific_memory_ingestion"
-    session.message = f"Indexing {len(session.papers)} acquired paper(s) into scientific memory..."
-    session_store.update(session)
-    ingestion_results = [
-        memory_service.ingest(paper, paper_store.pdf_path(paper.paper_id))
-        for paper in session.papers
-    ]
-    session.citations = [
-        Citation(
-            citation_id=paper.paper_id,
-            title=paper.title,
-            source=paper.source,
-            url=paper.paper_url,
-            year=paper.year,
-        )
-        for paper in session.papers
-    ]
-    failed_sources = [result.source for result in results if result.error]
-    session.message = (
-        f"Acquired {len(session.papers)} papers and indexed "
-        f"{sum(result.chunks_embedded for result in ingestion_results)} chunks."
-        if not failed_sources
-        else f"Acquired literature with source limitations: {', '.join(failed_sources)}."
-    )
-    session_store.update(session)
-    workflow_traces.record(session.session_id, "mcp_literature_acquisition", "completed", session.message, perf_counter())
-    workflow_traces.record(
-        session.session_id,
-        "scientific_memory_ingestion",
-        "completed",
-        session.message,
-        perf_counter(),
-    )
+    if reuse_existing:
+        # The initial JEV decision found sufficient memory coverage: answer
+        # from existing evidence without external acquisition.
+        session.message = "Initial JEV decision: reusing existing memory; external acquisition skipped."
+        session_store.update(session)
+        workflow_traces.record(session.session_id, "mcp_literature_acquisition", "skipped", session.message, perf_counter())
+        session.papers = []
+        session.citations = []
+    else:
+        session.papers = _acquire_literature(session)
 
     session.current_stage = "hybrid_evidence_retrieval"
     session.message = "Retrieving and reranking scientific evidence..."
@@ -225,6 +360,46 @@ def _run_complete_workflow(session_id: str) -> None:
     session_store.update(session)
     workflow_traces.record(session.session_id, "answer_generation_evaluation", "completed", session.message, perf_counter())
 
+    # Bounded corrective cycle: the full JEV policy may request ONE targeted
+    # improvement (more literature or a regenerated answer) before the final
+    # decision is locked in.
+    first_decision = jev_engine.decide_after_evaluation(
+        papers_found=len(session.papers),
+        evaluation_sufficient=session.evaluation.passed,
+        evaluation=session.evaluation,
+        acquisition_skipped=reuse_existing,
+    )
+    if first_decision.action == JEVAction.RETRIEVE_MORE:
+        session.refinement_cycles += 1
+        workflow_traces.record(session.session_id, "jev_retrieve_more", "started", first_decision.explanation, perf_counter())
+        existing_ids = {paper.paper_id for paper in session.papers}
+        new_papers = _acquire_literature(
+            session, limit=10, message="JEV retrieve-more: acquiring additional literature..."
+        )
+        session.papers = session.papers + [
+            paper for paper in new_papers if paper.paper_id not in existing_ids
+        ]
+        session.retrieval = retrieval_service.retrieve(session.query)
+        session.answer, session.evaluation = generation_service.generate(session.query, session.retrieval)
+        workflow_traces.record(
+            session.session_id,
+            "jev_retrieve_more",
+            "completed",
+            f"Retrieve-more cycle finished with evaluation score {session.evaluation.overall_score:.2f}.",
+            perf_counter(),
+        )
+    elif first_decision.action == JEVAction.REGENERATE:
+        session.refinement_cycles += 1
+        workflow_traces.record(session.session_id, "jev_regenerate", "started", first_decision.explanation, perf_counter())
+        session.answer, session.evaluation = generation_service.generate(session.query, session.retrieval)
+        workflow_traces.record(
+            session.session_id,
+            "jev_regenerate",
+            "completed",
+            f"Answer regenerated with evaluation score {session.evaluation.overall_score:.2f}.",
+            perf_counter(),
+        )
+
     report = build_report(session)
     session.report_document = report
     session.report = render_markdown(report)
@@ -233,16 +408,67 @@ def _run_complete_workflow(session_id: str) -> None:
     session_store.update(session)
     workflow_traces.record(session.session_id, "report_builder", "completed", session.message, perf_counter())
 
+    # Final JEV decision (bounded: corrective cycles already ran at most once).
     session.final_jev = jev_engine.decide_after_evaluation(
         papers_found=len(session.papers),
         evaluation_sufficient=session.evaluation.passed,
+        evaluation=session.evaluation,
     )
     session.current_stage = "final_jev_decision"
     session.status = WorkflowStatus.COMPLETED
     session.message = session.final_jev.explanation
     session_store.update(session)
     workflow_traces.record(session.session_id, "final_jev_decision", "completed", session.message, perf_counter())
+    _log_decision(session, perf_counter() - workflow_started)
     return AutomatedWorkflowResponse(session=session)
+
+
+def _acquire_literature(
+    session, limit: int = 5, message: str = "Workflow started. Acquiring scientific literature..."
+) -> list:
+    """Run MCP acquisition + memory ingestion and return the acquired papers."""
+    session.current_stage = "mcp_literature_acquisition"
+    session.message = message
+    session_store.update(session)
+    results = mcp_service.search(session.query, session.filters.sources, limit)
+    session.source_results = results
+    papers = mcp_service.store_papers(mcp_service.merge_unique(results))
+    session.current_stage = "scientific_memory_ingestion"
+    session.message = f"Indexing {len(papers)} acquired paper(s) into scientific memory..."
+    session_store.update(session)
+    ingestion_results = [
+        memory_service.ingest(paper, paper_store.pdf_path(paper.paper_id))
+        for paper in papers
+    ]
+    known_ids = {citation.citation_id for citation in session.citations}
+    session.citations = session.citations + [
+        Citation(
+            citation_id=paper.paper_id,
+            title=paper.title,
+            source=paper.source,
+            url=paper.paper_url,
+            year=paper.year,
+        )
+        for paper in papers
+        if paper.paper_id not in known_ids
+    ]
+    failed_sources = [result.source for result in results if result.error]
+    session.message = (
+        f"Acquired {len(papers)} papers and indexed "
+        f"{sum(result.chunks_embedded for result in ingestion_results)} chunks."
+        if not failed_sources
+        else f"Acquired literature with source limitations: {', '.join(failed_sources)}."
+    )
+    session_store.update(session)
+    workflow_traces.record(session.session_id, "mcp_literature_acquisition", "completed", session.message, perf_counter())
+    workflow_traces.record(
+        session.session_id,
+        "scientific_memory_ingestion",
+        "completed",
+        session.message,
+        perf_counter(),
+    )
+    return papers
 
 
 @router.get("/mcp/tools", response_model=MCPToolsResponse, tags=["mcp"])
@@ -480,7 +706,9 @@ def _get_session(session_id: str) -> ResearchSession:
     tags=["research", "workflow"],
 )
 def get_research_session(session_id: str) -> ResearchQueryResponse:
-    return ResearchQueryResponse(session=_get_session(session_id))
+    session = _get_session(session_id)
+    session.workflow_traces = workflow_traces.traces(session.session_id)
+    return ResearchQueryResponse(session=session)
 
 
 app.include_router(router)

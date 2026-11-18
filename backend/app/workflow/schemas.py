@@ -29,6 +29,9 @@ class ResearchReport(BaseModel):
     title: str
     executive_summary: str
     answer: str
+    methodology_comparison: list[str] = Field(default_factory=list)
+    findings: list[str] = Field(default_factory=list)
+    research_gaps: list[str] = Field(default_factory=list)
     evidence_summary: list[str] = Field(default_factory=list)
     limitations: list[str] = Field(default_factory=list)
     references: list[dict[str, str | int | None]] = Field(default_factory=list)

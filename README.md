@@ -10,7 +10,7 @@ This repository currently implements Modules 1–6 from the architecture in [REA
 - Query normalization and validation
 - System health and component diagnostics
 - Workflow status placeholder that clearly identifies downstream modules as planned
-- Module 2 decision boundary with provisional JEV policy and final decision mapping
+- Module 2 decision boundary with the full action-set JEV policy (jev-full-policy-v1) and final decision mapping
 - Real MCP stdio server/client integration using the official MCP Python SDK
 - MCP tools for arXiv, Semantic Scholar, paper metadata, and accessible PDF download
 - Persistent normalized paper metadata and PDF storage under `backend/data/papers`
@@ -77,7 +77,25 @@ Open `http://127.0.0.1:5173` (or `http://localhost:5173`). The frontend connects
 
 ### Tests
 
+```
+
+### Evaluation dashboard
+
+The frontend includes `/dashboard`, which reads evaluation data from
+`GET /api/evaluation/results`. The committed `evaluation_results.json` contains
+realistic sample values marked `"source": "estimated"`; the dashboard labels
+these values and does not present them as measured benchmarks.
+
+To collect workflow telemetry, start the backend and run:
+
 ```powershell
+python scripts/run_evaluation.py
+```
+
+The script uses `evaluation_queries.json`, records measured workflow telemetry,
+and preserves human-scored metrics until values are supplied in
+`manual_scores.json`. Replace estimated values only when the corresponding
+measurement or manual score is available.powershell
 cd backend
 pytest
 ```
@@ -180,7 +198,7 @@ GET  /api/v1/research/sessions/{session_id}/metrics
 
 After generating an answer, click **Build & download report**. The report remains grounded in the selected evidence and explicitly lists limitations when evidence or a real LLM provider is unavailable.
 
-The initial and final decision implementation is intentionally labeled provisional until the project selects and documents an authoritative JEV specification. The source adapters use live public APIs; a source outage is displayed in the session instead of being hidden.
+The initial and final decisions follow the full action-set JEV policy (`jev-full-policy-v1`): the initial decision maps memory state to `reuse_existing` (best stored chunk similarity ≥ 0.55), `reuse_or_acquire`, or `acquire` (empty memory), with `insufficient_or_error` as the safe fallback when decision inputs fail. After evaluation, the workflow chooses between `approve`, `retrieve_more` (low relevance), `regenerate` (low evidence coverage), a bounded `refine` cycle, and a transparent `stop_insufficient_evidence` when no usable papers exist. The source adapters use live public APIs (Semantic Scholar authenticated at 1 request/second); a source outage is displayed in the session instead of being hidden.
 
 ## Real MCP implementation
 

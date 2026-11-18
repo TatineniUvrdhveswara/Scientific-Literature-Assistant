@@ -1,0 +1,2 @@
+import { ReactNode } from "react";
+export function ChartCard({ title, children, estimated = true, onDownload }: { title: string; children: ReactNode; estimated?: boolean; onDownload: () => void }) { return <section className="chart-card"><div className="chart-title"><h3>{title}</h3>{estimated && <em>Estimated</em>}<button className="chart-download" type="button" onClick={onDownload}>Download PNG</button></div>{children}</section>; }

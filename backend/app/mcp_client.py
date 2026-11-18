@@ -16,10 +16,12 @@ from .paper_store import paper_store
 class MCPClient:
     def __init__(self) -> None:
         settings = get_settings()
+        backend_root = Path(__file__).resolve().parents[1]
+        command = sys.executable if settings.mcp_server_command == "python" else settings.mcp_server_command
         self.server = StdioServerParameters(
-            command=settings.mcp_server_command,
+            command=command,
             args=["-m", settings.mcp_server_script.removesuffix(".py").replace("\\", ".").replace("/", ".")],
-            env={**os.environ, "PYTHONPATH": str(Path.cwd())},
+            env={**os.environ, "PYTHONPATH": str(backend_root)},
         )
 
     async def discover_tools(self) -> list[MCPTool]:

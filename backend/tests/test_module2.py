@@ -7,7 +7,7 @@ from app.mcp.schemas import PaperRecord, SourceSearchResult
 client = TestClient(app)
 
 
-def test_query_creates_initial_provisional_jev_decision(monkeypatch) -> None:
+def test_query_creates_initial_empty_memory_jev_decision(monkeypatch) -> None:
     monkeypatch.setattr(
         "app.main.scientific_memory.stats",
         lambda: MemoryStats(
@@ -25,7 +25,7 @@ def test_query_creates_initial_provisional_jev_decision(monkeypatch) -> None:
     assert response.status_code == 201
     session = response.json()["session"]
     assert session["initial_jev"]["action"] == "acquire"
-    assert session["initial_jev"]["implementation"] == "provisional-memory-adequacy-policy"
+    assert session["initial_jev"]["implementation"] == "jev-full-policy-v1"
 
 
 def test_mcp_tools_are_discoverable() -> None:

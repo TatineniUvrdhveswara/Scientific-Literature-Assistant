@@ -21,17 +21,21 @@ export interface ResearchSession {
   current_stage: string;
   message: string;
   created_at: string;
-  citations: unknown[];
+  citations: Citation[];
   report: string | null;
   initial_jev: JEVDecision | null;
   final_jev: JEVDecision | null;
   papers: PaperRecord[];
   source_results: SourceResult[];
+  refinement_cycles: number;
   retrieval: RetrievalResponse | null;
   answer: GeneratedAnswer | null;
   evaluation: EvaluationResult | null;
   report_document: ResearchReport | null;
+  workflow_traces: WorkflowTrace[];
 }
+export interface WorkflowTrace { stage: string; status: string; started_at: string; duration_ms: number; detail: string; }
+export interface Citation { citation_id: string; title: string; source: string; url: string | null; year: number | null; }
 
 export interface RetrievalCandidate {
   chunk: { chunk_id: string; paper_id: string; text: string; page_start: number | null; source: string };
@@ -76,11 +80,41 @@ export interface ResearchReport {
   title: string;
   executive_summary: string;
   answer: string;
+  methodology_comparison: string[];
+  findings: string[];
+  research_gaps: string[];
   evidence_summary: string[];
   limitations: string[];
   references: { citation_id: string; title: string; source: string; year: number | null }[];
   evaluation_score: number | null;
   generated_at: string;
+}
+
+export type MetricSource = "measured" | "estimated";
+export interface EvaluationMetric { value: number; source: MetricSource; }
+export interface EvaluationSystem {
+  name: string;
+  answer_quality: EvaluationMetric;
+  citation_correctness: EvaluationMetric;
+  evidence_coverage: EvaluationMetric;
+  papers_retrieved: EvaluationMetric;
+  newly_processed_papers: EvaluationMetric;
+  duplicate_rate: EvaluationMetric;
+  mcp_calls: EvaluationMetric;
+  latency_seconds: EvaluationMetric;
+  tokens: EvaluationMetric;
+  cost: EvaluationMetric;
+  refinement_cycles: EvaluationMetric;
+}
+export type EvaluationMetricKey = Exclude<keyof EvaluationSystem, "name">;
+export interface EvaluationResults {
+  systems: EvaluationSystem[];
+  latency_breakdown: { system: string; mcp: number; ingestion: number; retrieval: number; rerank: number; llm: number; evaluation: number; source: MetricSource }[];
+  memory_reuse: { query: string; newly_processed_papers: number; latency_seconds: number; source: MetricSource }[];
+  retrieval_quality: { method: string; recall_at_k: EvaluationMetric; mrr: EvaluationMetric; ndcg_at_k: EvaluationMetric }[];
+  jev_actions: { action: string; initial: number; final: number; source: MetricSource }[];
+  average_refinement_cycles?: EvaluationMetric;
+  live_sessions?: { count: number; source: MetricSource; latest_query?: string | null; latest_completed_at?: string | null };
 }
 
 export interface WorkflowMetrics {
@@ -155,6 +189,13 @@ export function getSystemStatus(): Promise<SystemStatus> {
 
 export function getMemoryStats(): Promise<MemoryStats> {
   return request<MemoryStats>("/memory/stats");
+}
+
+export function getEvaluationResults(): Promise<EvaluationResults> {
+  return fetch(`${apiBaseUrl.replace("/api/v1", "/api")}/evaluation/results`).then(async (response) => {
+    if (!response.ok) throw new Error(`Evaluation results failed with status ${response.status}`);
+    return response.json() as Promise<EvaluationResults>;
+  });
 }
 
 export function submitQuery(query: string, filters: QueryFilters): Promise<{ session: ResearchSession }> {

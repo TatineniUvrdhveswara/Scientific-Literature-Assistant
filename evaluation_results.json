@@ -1,0 +1,570 @@
+{
+  "systems": [
+    {
+      "name": "Baseline 1: Direct LLM + MCP",
+      "answer_quality": {
+        "value": 0.74,
+        "source": "estimated"
+      },
+      "citation_correctness": {
+        "value": 0.68,
+        "source": "estimated"
+      },
+      "evidence_coverage": {
+        "value": 0.61,
+        "source": "estimated"
+      },
+      "papers_retrieved": {
+        "value": 5,
+        "source": "estimated"
+      },
+      "newly_processed_papers": {
+        "value": 5,
+        "source": "estimated"
+      },
+      "duplicate_rate": {
+        "value": 0.42,
+        "source": "estimated"
+      },
+      "mcp_calls": {
+        "value": 4,
+        "source": "estimated"
+      },
+      "latency_seconds": {
+        "value": 24.0,
+        "source": "estimated"
+      },
+      "tokens": {
+        "value": 4200,
+        "source": "estimated"
+      },
+      "cost": {
+        "value": 0.018,
+        "source": "estimated"
+      },
+      "refinement_cycles": {
+        "value": 1,
+        "source": "estimated"
+      }
+    },
+    {
+      "name": "Baseline 2: Fixed-top-K RAG",
+      "answer_quality": {
+        "value": 0.81,
+        "source": "estimated"
+      },
+      "citation_correctness": {
+        "value": 0.79,
+        "source": "estimated"
+      },
+      "evidence_coverage": {
+        "value": 0.76,
+        "source": "estimated"
+      },
+      "papers_retrieved": {
+        "value": 8,
+        "source": "estimated"
+      },
+      "newly_processed_papers": {
+        "value": 4,
+        "source": "estimated"
+      },
+      "duplicate_rate": {
+        "value": 0.28,
+        "source": "estimated"
+      },
+      "mcp_calls": {
+        "value": 3,
+        "source": "estimated"
+      },
+      "latency_seconds": {
+        "value": 19.0,
+        "source": "estimated"
+      },
+      "tokens": {
+        "value": 3600,
+        "source": "estimated"
+      },
+      "cost": {
+        "value": 0.014,
+        "source": "estimated"
+      },
+      "refinement_cycles": {
+        "value": 1,
+        "source": "estimated"
+      }
+    },
+    {
+      "name": "Proposed: Adaptive JEV + Hybrid RAG",
+      "answer_quality": {
+        "value": 0.91,
+        "source": "estimated"
+      },
+      "citation_correctness": {
+        "value": 0.94,
+        "source": "estimated"
+      },
+      "evidence_coverage": {
+        "value": 0.8505,
+        "source": "measured"
+      },
+      "papers_retrieved": {
+        "value": 5.0,
+        "source": "measured"
+      },
+      "newly_processed_papers": {
+        "value": 2.32,
+        "source": "measured"
+      },
+      "duplicate_rate": {
+        "value": 0.54,
+        "source": "measured"
+      },
+      "mcp_calls": {
+        "value": 2,
+        "source": "measured"
+      },
+      "latency_seconds": {
+        "value": 33.39,
+        "source": "measured"
+      },
+      "tokens": {
+        "value": 2900,
+        "source": "estimated"
+      },
+      "cost": {
+        "value": 0.009,
+        "source": "estimated"
+      },
+      "refinement_cycles": {
+        "value": 0.09,
+        "source": "measured"
+      }
+    }
+  ],
+  "latency_breakdown": [
+    {
+      "system": "Baseline 1: Direct LLM + MCP",
+      "mcp": 8,
+      "ingestion": 0,
+      "retrieval": 0,
+      "rerank": 0,
+      "llm": 13,
+      "evaluation": 3,
+      "source": "estimated"
+    },
+    {
+      "system": "Baseline 2: Fixed-top-K RAG",
+      "mcp": 4,
+      "ingestion": 5,
+      "retrieval": 3,
+      "rerank": 0,
+      "llm": 5,
+      "evaluation": 2,
+      "source": "estimated"
+    },
+    {
+      "system": "Proposed: Adaptive JEV + Hybrid RAG",
+      "mcp": 2,
+      "ingestion": 2,
+      "retrieval": 2,
+      "rerank": 1,
+      "llm": 3,
+      "evaluation": 1,
+      "source": "estimated"
+    }
+  ],
+  "memory_reuse": [
+    {
+      "query": "Q1: How does hybrid retrieval improve ",
+      "newly_processed_papers": 0,
+      "latency_seconds": 26.26,
+      "source": "measured"
+    },
+    {
+      "query": "Q2: What are the main challenges of ev",
+      "newly_processed_papers": 0,
+      "latency_seconds": 24.78,
+      "source": "measured"
+    },
+    {
+      "query": "Q3: Compare dense and sparse retrieval",
+      "newly_processed_papers": 0,
+      "latency_seconds": 28.33,
+      "source": "measured"
+    },
+    {
+      "query": "Q4: What research gaps remain in groun",
+      "newly_processed_papers": 0,
+      "latency_seconds": 24.15,
+      "source": "measured"
+    },
+    {
+      "query": "Q5: How can persistent memory reduce d",
+      "newly_processed_papers": 0,
+      "latency_seconds": 18.36,
+      "source": "measured"
+    },
+    {
+      "query": "Q6: How do LLM-based agents plan and a",
+      "newly_processed_papers": 0,
+      "latency_seconds": 76.61,
+      "source": "measured"
+    },
+    {
+      "query": "Q7: What are the best practices for ch",
+      "newly_processed_papers": 0,
+      "latency_seconds": 20.16,
+      "source": "measured"
+    },
+    {
+      "query": "Q8: How does reranking improve evidenc",
+      "newly_processed_papers": 0,
+      "latency_seconds": 20.32,
+      "source": "measured"
+    },
+    {
+      "query": "Q9: What evaluation metrics are used f",
+      "newly_processed_papers": 0,
+      "latency_seconds": 20.39,
+      "source": "measured"
+    },
+    {
+      "query": "Q10: How do cross-encoder rerankers com",
+      "newly_processed_papers": 4,
+      "latency_seconds": 22.51,
+      "source": "measured"
+    },
+    {
+      "query": "Q11: What methods reduce hallucinations",
+      "newly_processed_papers": 0,
+      "latency_seconds": 22.4,
+      "source": "measured"
+    },
+    {
+      "query": "Q12: How does query expansion affect re",
+      "newly_processed_papers": 3,
+      "latency_seconds": 26.25,
+      "source": "measured"
+    },
+    {
+      "query": "Q13: What are the tradeoffs between BM2",
+      "newly_processed_papers": 4,
+      "latency_seconds": 24.26,
+      "source": "measured"
+    },
+    {
+      "query": "Q14: How is citation accuracy measured ",
+      "newly_processed_papers": 3,
+      "latency_seconds": 32.61,
+      "source": "measured"
+    },
+    {
+      "query": "Q15: What role do knowledge graphs play",
+      "newly_processed_papers": 4,
+      "latency_seconds": 22.16,
+      "source": "measured"
+    },
+    {
+      "query": "Q16: How do agentic systems decide when",
+      "newly_processed_papers": 4,
+      "latency_seconds": 22.39,
+      "source": "measured"
+    },
+    {
+      "query": "Q17: What are effective strategies for ",
+      "newly_processed_papers": 0,
+      "latency_seconds": 44.53,
+      "source": "measured"
+    },
+    {
+      "query": "Q18: How does fine-tuning compare with ",
+      "newly_processed_papers": 2,
+      "latency_seconds": 26.36,
+      "source": "measured"
+    },
+    {
+      "query": "Q19: What are the limitations of automa",
+      "newly_processed_papers": 4,
+      "latency_seconds": 32.48,
+      "source": "measured"
+    },
+    {
+      "query": "Q20: How can vector databases support p",
+      "newly_processed_papers": 4,
+      "latency_seconds": 34.38,
+      "source": "measured"
+    },
+    {
+      "query": "Q21: What methods detect and remove dup",
+      "newly_processed_papers": 3,
+      "latency_seconds": 32.29,
+      "source": "measured"
+    },
+    {
+      "query": "Q22: How does context window size affec",
+      "newly_processed_papers": 1,
+      "latency_seconds": 26.41,
+      "source": "measured"
+    },
+    {
+      "query": "Q23: How does self-reflection improve a",
+      "newly_processed_papers": 5,
+      "latency_seconds": 36.41,
+      "source": "measured"
+    },
+    {
+      "query": "Q24: What are effective chunk overlap s",
+      "newly_processed_papers": 4,
+      "latency_seconds": 80.93,
+      "source": "measured"
+    },
+    {
+      "query": "Q25: How does semantic search handle sy",
+      "newly_processed_papers": 2,
+      "latency_seconds": 24.22,
+      "source": "measured"
+    },
+    {
+      "query": "Q26: What are the main failure modes of",
+      "newly_processed_papers": 5,
+      "latency_seconds": 31.59,
+      "source": "measured"
+    },
+    {
+      "query": "Q27: How does embedding model choice af",
+      "newly_processed_papers": 3,
+      "latency_seconds": 34.5,
+      "source": "measured"
+    },
+    {
+      "query": "Q28: What methods improve faithfulness ",
+      "newly_processed_papers": 4,
+      "latency_seconds": 24.15,
+      "source": "measured"
+    },
+    {
+      "query": "Q29: How do iterative retrieval strateg",
+      "newly_processed_papers": 1,
+      "latency_seconds": 136.79,
+      "source": "measured"
+    },
+    {
+      "query": "Q30: What are the challenges of PDF tex",
+      "newly_processed_papers": 0,
+      "latency_seconds": 22.26,
+      "source": "measured"
+    },
+    {
+      "query": "Q31: How does reciprocal rank fusion co",
+      "newly_processed_papers": 5,
+      "latency_seconds": 32.3,
+      "source": "measured"
+    },
+    {
+      "query": "Q32: What evaluation datasets exist for",
+      "newly_processed_papers": 2,
+      "latency_seconds": 26.31,
+      "source": "measured"
+    },
+    {
+      "query": "Q33: How does chain-of-thought promptin",
+      "newly_processed_papers": 4,
+      "latency_seconds": 30.25,
+      "source": "measured"
+    },
+    {
+      "query": "Q34: What are the best practices for me",
+      "newly_processed_papers": 2,
+      "latency_seconds": 26.45,
+      "source": "measured"
+    },
+    {
+      "query": "Q35: How do adaptive retrieval policies",
+      "newly_processed_papers": 3,
+      "latency_seconds": 34.72,
+      "source": "measured"
+    },
+    {
+      "query": "Q36: What is the impact of corpus size ",
+      "newly_processed_papers": 2,
+      "latency_seconds": 30.52,
+      "source": "measured"
+    },
+    {
+      "query": "Q37: How do structured outputs improve ",
+      "newly_processed_papers": 2,
+      "latency_seconds": 35.17,
+      "source": "measured"
+    },
+    {
+      "query": "Q38: What methods trace citations back ",
+      "newly_processed_papers": 5,
+      "latency_seconds": 26.62,
+      "source": "measured"
+    },
+    {
+      "query": "Q39: How does retrieval augmentation su",
+      "newly_processed_papers": 2,
+      "latency_seconds": 28.4,
+      "source": "measured"
+    },
+    {
+      "query": "Q40: What are the risks of training dat",
+      "newly_processed_papers": 5,
+      "latency_seconds": 32.5,
+      "source": "measured"
+    },
+    {
+      "query": "Q41: How do hybrid dense-sparse indexes",
+      "newly_processed_papers": 2,
+      "latency_seconds": 32.29,
+      "source": "measured"
+    },
+    {
+      "query": "Q42: What strategies handle conflicting",
+      "newly_processed_papers": 3,
+      "latency_seconds": 28.54,
+      "source": "measured"
+    },
+    {
+      "query": "Q43: How does temperature setting affec",
+      "newly_processed_papers": 4,
+      "latency_seconds": 51.57,
+      "source": "measured"
+    },
+    {
+      "query": "Q44: What are emerging trends in retrie",
+      "newly_processed_papers": 1,
+      "latency_seconds": 34.37,
+      "source": "measured"
+    }
+  ],
+  "retrieval_quality": [
+    {
+      "method": "Dense only",
+      "recall_at_k": {
+        "value": 0.77,
+        "source": "estimated"
+      },
+      "mrr": {
+        "value": 0.68,
+        "source": "estimated"
+      },
+      "ndcg_at_k": {
+        "value": 0.71,
+        "source": "estimated"
+      }
+    },
+    {
+      "method": "BM25 only",
+      "recall_at_k": {
+        "value": 0.69,
+        "source": "estimated"
+      },
+      "mrr": {
+        "value": 0.62,
+        "source": "estimated"
+      },
+      "ndcg_at_k": {
+        "value": 0.65,
+        "source": "estimated"
+      }
+    },
+    {
+      "method": "Hybrid",
+      "recall_at_k": {
+        "value": 0.84,
+        "source": "estimated"
+      },
+      "mrr": {
+        "value": 0.78,
+        "source": "estimated"
+      },
+      "ndcg_at_k": {
+        "value": 0.81,
+        "source": "estimated"
+      }
+    },
+    {
+      "method": "Hybrid + Rerank",
+      "recall_at_k": {
+        "value": 0.89,
+        "source": "estimated"
+      },
+      "mrr": {
+        "value": 0.84,
+        "source": "estimated"
+      },
+      "ndcg_at_k": {
+        "value": 0.87,
+        "source": "estimated"
+      }
+    }
+  ],
+  "jev_actions": [
+    {
+      "action": "REUSE_EXISTING",
+      "initial": 3,
+      "final": 0,
+      "source": "measured"
+    },
+    {
+      "action": "ACQUIRE_MORE",
+      "initial": 4,
+      "final": 0,
+      "source": "measured"
+    },
+    {
+      "action": "REUSE_AND_ACQUIRE",
+      "initial": 59,
+      "final": 0,
+      "source": "measured"
+    },
+    {
+      "action": "INSUFFICIENT_OR_ERROR",
+      "initial": 0,
+      "final": 0,
+      "source": "measured"
+    },
+    {
+      "action": "APPROVE",
+      "initial": 0,
+      "final": 59,
+      "source": "measured"
+    },
+    {
+      "action": "RETRIEVE_MORE",
+      "initial": 0,
+      "final": 0,
+      "source": "measured"
+    },
+    {
+      "action": "REFINE_RETRIEVAL",
+      "initial": 0,
+      "final": 4,
+      "source": "measured"
+    },
+    {
+      "action": "REGENERATE",
+      "initial": 0,
+      "final": 0,
+      "source": "measured"
+    },
+    {
+      "action": "STOP_INSUFFICIENT_EVIDENCE",
+      "initial": 0,
+      "final": 3,
+      "source": "measured"
+    }
+  ],
+  "average_refinement_cycles": {
+    "value": 0.09,
+    "source": "measured"
+  },
+  "jev_baseline": {
+    "sessions": 66,
+    "cycle_sum": 6,
+    "source": "measured"
+  }
+}
